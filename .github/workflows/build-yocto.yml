@@ -78,10 +78,11 @@ jobs:
         run: |
           echo 'MACHINE = "raspberrypi3"' >> poky/build/conf/local.conf
           echo 'ENABLE_UART = "1"' >> poky/build/conf/local.conf
-          echo 'DISTRO_FEATURES_append = " wifi systemd usbgadget usbhost"' >> poky/build/conf/local.conf
+          echo 'DISTRO_FEATURES:append = " wifi systemd usbgadget usbhost"' >> poky/build/conf/local.conf
           echo 'IMAGE_FEATURES += "ssh-server-openssh package-management"' >> poky/build/conf/local.conf
           echo 'hostname = "raspberrypi"' >> poky/build/conf/local.conf
           echo 'PACKAGE_CLASSES = "package_ipk"' >> poky/build/conf/local.conf
+          echo 'CONF_VERSION = "2"' >> poky/build/conf/local.conf
 
       - name: Build Yocto Image
         run: |
