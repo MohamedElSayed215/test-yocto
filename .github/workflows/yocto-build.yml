@@ -83,9 +83,15 @@ jobs:
         cd build
         bitbake rpi-test-image
 
-    # Upload build artifact (use commit hash for v2)
-    - name: Upload build artifact
-      uses: github.com/actions/upload-artifact@6a047062207aa46449ff70b7a55b43002d0f0042
+    # Compress and upload artifact manually
+    - name: Compress Yocto build artifact
+      run: |
+        tar -czf yocto-build.tar.gz ./build/tmp/deploy/images/raspberrypi3/*.wic
+        echo "Artifact compressed"
+
+    # Upload the artifact
+    - name: Upload manually compressed artifact
+      uses: actions/upload-artifact@v3
       with:
         name: yocto-build-artifact
-        path: ./build/tmp/deploy/images/raspberrypi3/*.wic
+        path: yocto-build.tar.gz
