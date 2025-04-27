@@ -89,8 +89,8 @@ jobs:
         tar -czf yocto-build.tar.gz ./build/tmp/deploy/images/raspberrypi3/*.wic
         echo "Artifact compressed"
 
-    # Upload the artifact
-    - name: Upload manually compressed artifact
+    # Upload the artifact using latest version
+    - name: Upload build artifact
       uses: actions/upload-artifact@v3
       with:
         name: yocto-build-artifact
