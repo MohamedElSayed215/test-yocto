@@ -1,0 +1,44 @@
+name: Setup Yocto Environment for Raspberry Pi 3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  setup:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gawk wget git-core diffstat unzip texinfo gcc-multilib \
+            build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils \
+            debianutils iputils-ping libsdl1.2-dev xterm file curl locales
+
+      - name: Clone Yocto Project and Layers
+        run: |
+          git clone -b kirkstone git://git.yoctoproject.org/poky.git
+          cd poky
+          git clone -b kirkstone https://git.yoctoproject.org/meta-raspberrypi
+          git clone -b kirkstone https://github.com/openembedded/meta-openembedded.git
+
+      - name: Initialize Yocto Environment
+        run: |
+          cd poky
+          source oe-init-build-env
+
+      - name: Restore Yocto Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            poky/build/downloads
+            poky/build/sstate-cache
+          key: yocto-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            yocto-${{ runner.os }}-
