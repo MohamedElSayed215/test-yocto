@@ -83,9 +83,9 @@ jobs:
         cd build
         bitbake rpi-test-image
 
-    # Upload build artifact
+    # Upload build artifact (use v2 version of the action)
     - name: Upload build artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: yocto-build-artifact
         path: ./build/tmp/deploy/images/raspberrypi3/*.wic
