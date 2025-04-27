@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout Repository
@@ -19,7 +19,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gawk wget git-core diffstat unzip texinfo gcc-multilib \
             build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils \
-            debianutils iputils-ping libsdl1.2-dev xterm file curl
+            debianutils iputils-ping libsdl1.2-dev xterm file curl locales
 
       - name: Clone Yocto Project and Layers
         run: |
@@ -51,7 +51,7 @@ jobs:
           bitbake-layers add-layer ../meta-openembedded/meta-oe
           bitbake-layers add-layer ../meta-openembedded/meta-python
 
-      - name: Add Custom Image Recipe
+      - name: Create Custom Image Recipe
         run: |
           mkdir -p poky/meta-custom/recipes-core/images
           cat <<EOF > poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
