@@ -54,27 +54,25 @@ jobs:
       - name: Create Custom Image Recipe
         run: |
           mkdir -p poky/meta-custom/recipes-core/images
-          cat <<EOF > poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
-SUMMARY = "Custom Raspberry Pi 3 Image with Wifi, Ethernet, Connman, Python, and GPIO"
-LICENSE = "MIT"
-
-inherit core-image
-
-IMAGE_INSTALL += " \\
-    python3 \\
-    python3-pip \\
-    connman connman-client \\
-    openssh \\
-    opkg \\
-    raspberrypi-gpio \\
-    python3-smbus \\
-    python3-setuptools \\
-    i2c-tools \\
-    spi-tools \\
-"
-
-EXTRA_IMAGE_FEATURES += "ssh-server-openssh package-management"
-EOF
+          echo 'SUMMARY = "Custom Raspberry Pi 3 Image with Wifi, Ethernet, Connman, Python, and GPIO"' > poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo 'LICENSE = "MIT"' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo 'inherit core-image' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo 'IMAGE_INSTALL += " \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    python3 \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    python3-pip \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    connman connman-client \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    openssh \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    opkg \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    raspberrypi-gpio \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    python3-smbus \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    python3-setuptools \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    i2c-tools \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '    spi-tools \\' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '" ' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo '' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
+          echo 'EXTRA_IMAGE_FEATURES += "ssh-server-openssh package-management"' >> poky/meta-custom/recipes-core/images/raspberrypi-custom-image.bb
 
       - name: Add Custom Local.conf Settings
         run: |
