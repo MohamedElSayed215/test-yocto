@@ -91,7 +91,7 @@ jobs:
 
     # Upload the artifact using full URL for upload-artifact
     - name: Upload build artifact
-      uses: github.com/actions/upload-artifact@v4
+      uses: github.com/actions/upload-artifact@v3
       with:
         name: yocto-build-artifact
         path: yocto-build.tar.gz
