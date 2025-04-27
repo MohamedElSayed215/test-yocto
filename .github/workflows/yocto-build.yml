@@ -1,75 +1,72 @@
-name: Build rpi-test-image for Raspberry Pi 3
+name: Yocto Build for Raspberry Pi 3
 
 on:
   push:
     branches:
-      - main  # Trigger build on push to the 'main' branch
-  pull_request:
-    branches:
-      - main  # Trigger build on PRs to the 'main' branch
+      - main
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # You can also use other runners if needed
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    # Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Set up dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            git \
-            wget \
-            python3 \
-            python3-pip \
-            sudo \
-            tar \
-            unzip \
-            gcc \
-            gawk \
-            make \
-            bc \
-            libsdl1.2-dev \
-            libarchive-dev
+    # Set up dependencies for Yocto build
+    - name: Setup dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git \
+          build-essential \
+          chrpath \
+          texinfo \
+          gcc \
+          g++ \
+          gawk \
+          wget \
+          diffstat \
+          unzip \
+          bc \
+          zlib1g-dev \
+          libncurses5-dev \
+          libsdl1.2-dev \
+          xterm \
+          cpio \
+          python3 \
+          python3-pip \
+          python3-pexpect \
+          curl
 
-      - name: Set up Yocto environment for Raspberry Pi 3
-        run: |
-          # Assuming you're using the official Raspberry Pi Yocto layers
-          git clone git://git.yoctoproject.org/poky.git
-          git clone git://git.yoctoproject.org/meta-openembedded.git
-          git clone git://git.yoctoproject.org/meta-raspberrypi.git
-          git clone git://git.yoctoproject.org/meta-networking.git  # For networking support
+    # Clone Yocto layers
+    - name: Clone Yocto layers
+      run: |
+        git clone git://git.yoctoproject.org/poky.git
+        git clone git://git.yoctoproject.org/meta-openembedded.git
+        git clone git://git.yoctoproject.org/meta-raspberrypi.git
+        git clone git://git.yoctoproject.org/meta-networking.git
+        cd poky && git checkout master
 
-          cd poky
-          source oe-init-build-env ../build
+    # Initialize the Yocto build environment
+    - name: Initialize Yocto build environment
+      run: |
+        cd poky
+        source oe-init-build-env ../build
 
-      - name: Configure Yocto for Raspberry Pi 3
-        run: |
-          echo 'MACHINE = "raspberrypi3"' >> conf/local.conf
-          echo 'DISTRO = "poky"' >> conf/local.conf
-          echo 'CONF_VERSION = "1"' >> conf/local.conf
-          echo 'DL_DIR = "downloads"' >> conf/local.conf
-          echo 'SSTATE_DIR = "sstate-cache"' >> conf/local.conf
-          
-          # Enable SSH, Wi-Fi, and Ethernet
-          echo 'IMAGE_FSTYPES = "wic img"' >> conf/local.conf
-          echo 'CORE_IMAGE_EXTRA_INSTALL = "rpi-test-image openssh wpa-supplicant networkmanager raspberrypi-firmware"' >> conf/local.conf
-
-          # Enable Ethernet (usually default but added explicitly for clarity)
-          echo 'DISTRO_FEATURES_append = " wifi ethernet ssh"' >> conf/local.conf
-          echo 'EXTRA_IMAGE_FEATURES = "ssh-server-openssh"' >> conf/local.conf
-
-      - name: Build rpi-test-image for Raspberry Pi 3
-        run: |
-          cd $GITHUB_WORKSPACE/poky
-          source ./oe-init-build-env
-          bitbake rpi-test-image  # Build the rpi-test-image
-
-      - name: Upload build artifacts (optional)
-        uses: actions/upload-artifact@v2
-        with:
-          name: rpi3-test-image
-          path: build/tmp/deploy/images/raspberrypi3/*  # Specify path to your image file
+    # Configure Yocto build (setting local.conf and bblayers.conf)
+    - name: Configure Yocto build
+      run: |
+        cd build
+        echo 'MACHINE = "raspberrypi3"' >> conf/local.conf
+        echo 'DISTRO = "poky"' >> conf/local.conf
+        echo 'CONF_VERSION = "1"' >> conf/local.conf
+        echo 'DL_DIR = "downloads"' >> conf/local.conf
+        echo 'SSTATE_DIR = "sstate-cache"' >> conf/local.conf
+        echo 'DISTRO_FEATURES_append = " wifi ethernet ssh"' >> conf/local.conf
+        echo 'EXTRA_IMAGE_FEATURES = "ssh-server-openssh"' >> conf/local.conf
+        echo 'IMAGE_FSTYPES = "wic img"' >> conf/local.conf
+        echo 'CORE_IMAGE_EXTRA_INSTALL = "openssh wpa-supplicant networkmanager raspberrypi-firmware rpi-test-image"' >> conf/local.conf
+        echo 'BBLAYERS = "
