@@ -1,16 +1,97 @@
+name: Yocto Build for Raspberry Pi 3
 
-0s
-Current runner version: '2.323.0'
-Operating System
-Runner Image
-Runner Image Provisioner
-GITHUB_TOKEN Permissions
-Secret source: Actions
-Prepare workflow directory
-Prepare all required actions
-Getting action download info
-Download immutable action package 'actions/checkout@v4'
-  Version: 4.2.2
-  Digest: sha256:ccb2698953eaebd21c7bf6268a94f9c26518a7e38e27e0b83c1fe1ad049819b1
-  Source commit SHA: 11bd71901bbe5b1630ceea73d27597364c9af683
-Error: Missing download info for actions/upload-artifact@v3
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout the repository
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Install dependencies required for Yocto
+    - name: Setup dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git \
+          build-essential \
+          chrpath \
+          texinfo \
+          gcc \
+          g++ \
+          gawk \
+          wget \
+          diffstat \
+          unzip \
+          bc \
+          zlib1g-dev \
+          libncurses5-dev \
+          libsdl1.2-dev \
+          xterm \
+          cpio \
+          python3 \
+          python3-pip \
+          python3-pexpect \
+          curl
+
+    # Clone Yocto layers using HTTPS
+    - name: Clone Yocto layers
+      run: |
+        git clone https://git.yoctoproject.org/poky.git
+        git clone https://git.yoctoproject.org/meta-openembedded.git
+        git clone https://git.yoctoproject.org/meta-raspberrypi.git
+        git clone https://git.yoctoproject.org/meta-networking.git
+        cd poky && git checkout master
+
+    # Initialize the Yocto build environment
+    - name: Initialize Yocto build environment
+      run: |
+        cd poky
+        source oe-init-build-env ../build
+
+    # Configure Yocto build (setting local.conf and bblayers.conf)
+    - name: Configure Yocto build
+      run: |
+        cd build
+        echo 'MACHINE = "raspberrypi3"' >> conf/local.conf
+        echo 'DISTRO = "poky"' >> conf/local.conf
+        echo 'CONF_VERSION = "1"' >> conf/local.conf
+        echo 'DL_DIR = "downloads"' >> conf/local.conf
+        echo 'SSTATE_DIR = "sstate-cache"' >> conf/local.conf
+        echo 'DISTRO_FEATURES_append = " wifi ethernet ssh"' >> conf/local.conf
+        echo 'EXTRA_IMAGE_FEATURES = "ssh-server-openssh"' >> conf/local.conf
+        echo 'IMAGE_FSTYPES = "wic img"' >> conf/local.conf
+        echo 'CORE_IMAGE_EXTRA_INSTALL = "openssh wpa-supplicant networkmanager raspberrypi-firmware rpi-test-image"' >> conf/local.conf
+        echo 'BBLAYERS = " \
+          ${TOPDIR}/../poky/meta \
+          ${TOPDIR}/../meta-openembedded/meta-oe \
+          ${TOPDIR}/../meta-openembedded/meta-networking \
+          ${TOPDIR}/../meta-raspberrypi \
+          ${TOPDIR}/../meta \
+        "' > conf/bblayers.conf
+
+    # Build the Yocto image
+    - name: Build Yocto image
+      run: |
+        cd build
+        bitbake rpi-test-image
+
+    # Compress and upload artifact manually
+    - name: Compress Yocto build artifact
+      run: |
+        tar -czf yocto-build.tar.gz ./build/tmp/deploy/images/raspberrypi3/*.wic
+        echo "Artifact compressed"
+
+    # Upload the artifact using full URL for upload-artifact
+    - name: Upload build artifact
+      uses: github.com/actions/upload-artifact@v3
+      with:
+        name: yocto-build-artifact
+        path: yocto-build.tar.gz
