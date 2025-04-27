@@ -15,7 +15,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    # Set up dependencies for Yocto build
+    # Install dependencies required for Yocto
     - name: Setup dependencies
       run: |
         sudo apt-get update
@@ -41,13 +41,13 @@ jobs:
           python3-pexpect \
           curl
 
-    # Clone Yocto layers
+    # Clone Yocto layers using HTTPS
     - name: Clone Yocto layers
       run: |
-        git clone git://git.yoctoproject.org/poky.git
-        git clone git://git.yoctoproject.org/meta-openembedded.git
-        git clone git://git.yoctoproject.org/meta-raspberrypi.git
-        git clone git://git.yoctoproject.org/meta-networking.git
+        git clone https://git.yoctoproject.org/poky.git
+        git clone https://git.yoctoproject.org/meta-openembedded.git
+        git clone https://git.yoctoproject.org/meta-raspberrypi.git
+        git clone https://git.yoctoproject.org/meta-networking.git
         cd poky && git checkout master
 
     # Initialize the Yocto build environment
@@ -69,4 +69,23 @@ jobs:
         echo 'EXTRA_IMAGE_FEATURES = "ssh-server-openssh"' >> conf/local.conf
         echo 'IMAGE_FSTYPES = "wic img"' >> conf/local.conf
         echo 'CORE_IMAGE_EXTRA_INSTALL = "openssh wpa-supplicant networkmanager raspberrypi-firmware rpi-test-image"' >> conf/local.conf
-        echo 'BBLAYERS = "
+        echo 'BBLAYERS = " \
+          ${TOPDIR}/../poky/meta \
+          ${TOPDIR}/../meta-openembedded/meta-oe \
+          ${TOPDIR}/../meta-openembedded/meta-networking \
+          ${TOPDIR}/../meta-raspberrypi \
+          ${TOPDIR}/../meta \
+        "' > conf/bblayers.conf
+
+    # Build the Yocto image
+    - name: Build Yocto image
+      run: |
+        cd build
+        bitbake rpi-test-image
+
+    # Upload build artifact
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: yocto-build-artifact
+        path: ./build/tmp/deploy/images/raspberrypi3/*.wic
