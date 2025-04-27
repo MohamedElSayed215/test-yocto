@@ -50,6 +50,8 @@ jobs:
           bitbake-layers add-layer ../meta-raspberrypi
           bitbake-layers add-layer ../meta-openembedded/meta-oe
           bitbake-layers add-layer ../meta-openembedded/meta-python
+          # Add the custom layer (make sure the path is correct)
+          bitbake-layers add-layer ../meta-custom
 
       - name: Create Custom Image Recipe
         run: |
