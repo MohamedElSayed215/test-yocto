@@ -214,6 +214,6 @@ EOF
 
 # Build the minimal SSH image
 echo "Starting build..."
-bitbake rpi-test-image
+bitbake rpi-image-base
 
 echo "Build complete! Your image is at: ${BUILD_DIR}/tmp/deploy/images/${MACHINE}/"
