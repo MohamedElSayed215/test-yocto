@@ -182,6 +182,7 @@ INIT_MANAGER = "systemd"
 ENABLE_UART = "1"
 RPI_USE_U_BOOT = "1"
 DISTRO_FEATURES_append = " wifi"
+IMAGE_INSTALL:append = " connman connman-client"
 
 # Enable camera support
 DISTRO_FEATURES_append = " camera"
