@@ -39,6 +39,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: raspberry-pi-4-64bit-image
-          path: |
-            build/tmp/deploy/images/raspberrypi4-64/minimal-ssh-image-raspberrypi4-64.wic.bz2
-            build/tmp/deploy/images/raspberrypi4-64/minimal-ssh-image-raspberrypi4-64.wic.bmap
+          path: build/tmp/deploy/images/**/*.wic*
+
