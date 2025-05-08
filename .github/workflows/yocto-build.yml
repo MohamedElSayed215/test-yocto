@@ -27,8 +27,6 @@ jobs:
         git clone -b kirkstone https://github.com/agherzan/meta-raspberrypi.git
         # ADDED: remove problematic dynamic-layers to avoid parsing errors
         rm -rf meta-raspberrypi/dynamic-layers/openembedded-layer
-        # Remove problematic dynamic sub-layer to avoid parsing errors
-        rm -rf meta-raspberrypi/dynamic-layers/openembedded-layer
         git clone -b kirkstone https://github.com/openembedded/meta-openembedded.git
 
     - name: Setup Build Environment
