@@ -35,8 +35,7 @@ jobs:
         source oe-init-build-env build
 
         echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi"' >> conf/bblayers.conf
-        # Include core Poky layers for quilt-native support (no duplication of core layer)
-        echo 'BBLAYERS += "${TOPDIR}/../meta"' >> conf/bblayers.conf
+        # Removed redundant core layer inclusion (no duplication with meta)
         echo 'BBLAYERS += "${TOPDIR}/../meta-openembedded/meta-oe"' >> conf/bblayers.conf
         echo 'BBLAYERS += "${TOPDIR}/../../meta-rpi-custom"' >> conf/bblayers.conf
 
