@@ -3,8 +3,9 @@ LICENSE = "MIT"
 
 inherit core-image
 
-# Remove python3-pip and python3-setuptools to avoid quilt-native dependency issues
+# Ensure quilt-native is installed to avoid quilt-native dependency errors
 IMAGE_INSTALL += " \
+    quilt-native \
     packagegroup-core-boot \
     packagegroup-core-ssh-dropbear \
     bash \
