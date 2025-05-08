@@ -3,14 +3,13 @@ LICENSE = "MIT"
 
 inherit core-image
 
+# Remove python3-pip and python3-setuptools to avoid quilt-native dependency issues
 IMAGE_INSTALL += " \
     packagegroup-core-boot \
     packagegroup-core-ssh-dropbear \
     bash \
     nano \
     python3 \
-    python3-pip \
-    python3-setuptools \
     opkg \
     connman \
     libcamera \
