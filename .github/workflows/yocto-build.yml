@@ -35,7 +35,9 @@ jobs:
         source oe-init-build-env build
 
         echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi"' >> conf/bblayers.conf
-        # Removed redundant core layer inclusion (no duplication with meta)
+        # Include core Poky layers for quilt-native support
+        echo 'BBLAYERS += "${TOPDIR}/../meta"' >> conf/bblayers.conf
+        echo 'BBLAYERS += "${TOPDIR}/../meta-yocto-bsp"' >> conf/bblayers.conf
         echo 'BBLAYERS += "${TOPDIR}/../meta-openembedded/meta-oe"' >> conf/bblayers.conf
         echo 'BBLAYERS += "${TOPDIR}/../../meta-rpi-custom"' >> conf/bblayers.conf
 
@@ -52,8 +54,8 @@ jobs:
         echo 'EXTRA_IMAGE_FEATURES += "package-management"' >> conf/local.conf
         echo 'INHERIT += "rm_work"' >> conf/local.conf
 
-    - name: Build rpi-basic-image
+    - name: Build rpi-test-image
       run: |
         cd poky
         source oe-init-build-env build
-        bitbake rpi-basic-image
+        bitbake rpi-test-image
