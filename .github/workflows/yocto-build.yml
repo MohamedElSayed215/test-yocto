@@ -35,9 +35,7 @@ jobs:
         source oe-init-build-env build
 
         echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi"' >> conf/bblayers.conf
-        # Removed inclusion of dynamic-layers/openembedded-layer to avoid missing conf
-# echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi/dynamic-layers/openembedded-layer"' >> conf/bblayers.conf
-        # Include core Poky layers to provide native tools like quilt-native
+        # Include core Poky layers for quilt-native support
         echo 'BBLAYERS += "${TOPDIR}/../meta"' >> conf/bblayers.conf
         echo 'BBLAYERS += "${TOPDIR}/../meta-yocto-bsp"' >> conf/bblayers.conf
         echo 'BBLAYERS += "${TOPDIR}/../meta-openembedded/meta-oe"' >> conf/bblayers.conf
@@ -48,7 +46,7 @@ jobs:
         echo 'GPU_MEM = "128"' >> conf/local.conf
         echo 'ENABLE_CAMERA = "1"' >> conf/local.conf
         echo 'RPI_USE_U_BOOT = "0"' >> conf/local.conf
-        # Mask dynamic openembedded-layer from meta-raspberrypi to avoid bbappend errors
+        # Mask stray bbappend
         echo 'BBMASK += "${TOPDIR}/../meta-raspberrypi/dynamic-layers/openembedded-layer"' >> conf/local.conf
         echo 'DISTRO_FEATURES:append = " wifi systemd connman vc4"' >> conf/local.conf
         echo 'IMAGE_INSTALL:append = " openssh opkg connman libcamera libcamera-apps python3-picamera2"' >> conf/local.conf
