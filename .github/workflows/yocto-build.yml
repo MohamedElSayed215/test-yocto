@@ -33,7 +33,8 @@ jobs:
         source oe-init-build-env build
 
         echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi"' >> conf/bblayers.conf
-        echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi/dynamic-layers/openembedded-layer"' >> conf/bblayers.conf
+        # Removed inclusion of dynamic-layers/openembedded-layer to avoid missing conf
+# echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi/dynamic-layers/openembedded-layer"' >> conf/bblayers.conf
         # Include core Poky layers to provide native tools like quilt-native
         echo 'BBLAYERS += "${TOPDIR}/../meta"' >> conf/bblayers.conf
         echo 'BBLAYERS += "${TOPDIR}/../meta-yocto-bsp"' >> conf/bblayers.conf
