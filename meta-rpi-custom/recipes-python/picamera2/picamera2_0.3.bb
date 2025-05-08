@@ -8,7 +8,8 @@ SRCREV = "HEAD"
 
 S = "${WORKDIR}/git"
 
-DEPENDS += "python3 python3-pip python3-setuptools python3-numpy libcamera"
+# Only depend on numpy and libcamera; remove pip to avoid quilt-native
+DEPENDS += "python3-numpy libcamera"
 
 inherit setuptools3
 
