@@ -1,43 +1,54 @@
-name: Yocto Build
+name: Yocto Raspberry Pi 3 Build
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          swap-size-mb: 1024
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gawk wget git-core diffstat unzip texinfo gcc build-essential \
+          chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping \
+          python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc build-essential \
-            chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils \
-            iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint xterm
+    - name: Checkout your custom layer
+      uses: actions/checkout@v3
 
-      - name: Check out repository
-        uses: actions/checkout@v4
-        
-      - name: Run build script
-        run: |
-          chmod +x scripts/build.sh
-          ./scripts/build.sh
+    - name: Clone Poky and Layers
+      run: |
+        git clone -b kirkstone https://git.yoctoproject.org/git/poky poky
+        cd poky
+        git clone -b kirkstone https://github.com/agherzan/meta-raspberrypi.git
+        git clone -b kirkstone https://git.yoctoproject.org/git/meta-openembedded
 
-      - name: Upload Raspberry Pi 4 image
-        uses: actions/upload-artifact@v4
-        with:
-          name: raspberry-pi-4-64bit-image
-          path: build/tmp/deploy/images/**/*.wic*
+    - name: Setup Build Environment
+      run: |
+        cd poky
+        source oe-init-build-env build
 
+        echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi"' >> conf/bblayers.conf
+        echo 'BBLAYERS += "${TOPDIR}/../meta-openembedded/meta-oe"' >> conf/bblayers.conf
+        echo 'BBLAYERS += "${TOPDIR}/../../meta-rpi-custom"' >> conf/bblayers.conf
+
+        echo 'MACHINE = "raspberrypi3"' >> conf/local.conf
+        echo 'ENABLE_UART = "1"' >> conf/local.conf
+        echo 'GPU_MEM = "128"' >> conf/local.conf
+        echo 'ENABLE_CAMERA = "1"' >> conf/local.conf
+        echo 'RPI_USE_U_BOOT = "0"' >> conf/local.conf
+        echo 'DISTRO_FEATURES:append = " wifi systemd connman vc4"' >> conf/local.conf
+        echo 'IMAGE_INSTALL:append = " openssh opkg connman libcamera libcamera-apps python3-picamera2"' >> conf/local.conf
+        echo 'PACKAGE_CLASSES = "package_ipk"' >> conf/local.conf
+        echo 'EXTRA_IMAGE_FEATURES += "package-management"' >> conf/local.conf
+        echo 'INHERIT += "rm_work"' >> conf/local.conf
+
+    - name: Build rpi-basic-image
+      run: |
+        cd poky
+        source oe-init-build-env build
+        bitbake rpi-basic-image
