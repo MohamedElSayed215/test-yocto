@@ -41,6 +41,8 @@ jobs:
         echo 'GPU_MEM = "128"' >> conf/local.conf
         echo 'ENABLE_CAMERA = "1"' >> conf/local.conf
         echo 'RPI_USE_U_BOOT = "0"' >> conf/local.conf
+        # Mask dynamic openembedded-layer from meta-raspberrypi to avoid bbappend errors
+        echo 'BBMASK += "${TOPDIR}/../meta-raspberrypi/dynamic-layers/openembedded-layer"' >> conf/local.conf
         echo 'DISTRO_FEATURES:append = " wifi systemd connman vc4"' >> conf/local.conf
         echo 'IMAGE_INSTALL:append = " openssh opkg connman libcamera libcamera-apps python3-picamera2"' >> conf/local.conf
         echo 'PACKAGE_CLASSES = "package_ipk"' >> conf/local.conf
