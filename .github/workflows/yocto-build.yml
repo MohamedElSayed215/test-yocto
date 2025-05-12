@@ -29,7 +29,7 @@ jobs:
           sudo apt install -y gawk wget git diffstat unzip texinfo gcc-multilib \
             build-essential chrpath socat cpio python3 python3-pip python3-pexpect \
             xz-utils debianutils iputils-ping libssl-dev libsdl1.2-dev xterm \
-            python3-git python3-jinja2 libegl1-mesa libwayland-protocol-dev \
+            python3-git python3-jinja2 libegl-dev libwayland-dev \ # <-- MODIFIED LINES HERE
             libacl1-dev zstd locales
 
           # Optional: Configure Git for Yocto (for repo tool)
@@ -52,16 +52,8 @@ jobs:
           repo sync
 
           # Clone additional layers required for Raspberry Pi and your features
-          # It's generally recommended to clone these alongside the poky directory,
-          # not inside it, for cleaner separation.
-
-          # Meta-Raspberrypi layer for RPi support
           git clone -b yocto-4.3.1 git://git.yoctoproject.org/meta-raspberrypi.git poky/meta-raspberrypi
-
-          # Meta-OpenEmbedded layers (oe-core, python, multimedia)
           git clone -b yocto-4.3.1 git://git.openembedded.org/meta-openembedded poky/meta-openembedded
-
-          # Meta-Virtualization layer for Docker
           git clone -b yocto-4.3.1 https://git.yoctoproject.org/git/meta-virtualization poky/meta-virtualization
 
         working-directory: ${{ github.workspace }} # This ensures repos are cloned into the root of your repo
@@ -73,58 +65,18 @@ jobs:
 
           # --- USER CUSTOMIZATION POINT: Modify local.conf ---
           cat <<EOF >> conf/local.conf
-          # Set your target machine to Raspberry Pi 3
           MACHINE ?= "raspberrypi3"
-          DISTRO ?= "poky" # Or your custom distro if defined
+          DISTRO ?= "poky"
 
-          # Optional: Improve build performance (adjust based on runner cores, usually 2 on GH Actions)
           BB_NUMBER_THREADS = "2"
           PARALLEL_MAKE = "-j 2"
 
-          # Enable SSH server (via Dropbear, a lightweight server)
           EXTRA_IMAGE_FEATURES += " ssh-server-dropbear"
-
-          # Enable systemd as the init manager (REQUIRED by some features like Docker)
           INIT_MANAGER = "systemd"
 
-          # --- REQUIRED FEATURES ---
-          # Python 3 & Pip
-          IMAGE_INSTALL_append = " python3 python3-pip"
-          PREFERRED_PROVIDER_virtual/python = "python3"
-          PREFERRED_PROVIDER_virtual/python3 = "python3"
+          IMAGE_INSTALL_append = " python3 python3-pip opkg rpi-userland-vc raspi-config libcamera libcamera-tools v4l2-utils gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly docker-ce docker-ce-cli containerd.io python3-docker python3-docker-compose my-app nano wpa-supplicant wireless-tools connman connman-tools"
 
-          # OPKG
-          IMAGE_INSTALL_append = " opkg"
-
-          # RPi Camera Support
-          IMAGE_INSTALL_append = " rpi-userland-vc raspi-config libcamera libcamera-tools v4l2-utils"
-
-          # GStreamer and common plugins
-          IMAGE_INSTALL_append = " gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly"
-
-          # Docker and Docker Compose
-          IMAGE_INSTALL_append = " docker-ce docker-ce-cli containerd.io"
-          IMAGE_INSTALL_append = " python3-docker python3-docker-compose"
-
-          # --- Add Wifi Support (wpa-supplicant is also included for broader compatibility) ---
-          IMAGE_INSTALL_append = " wpa-supplicant wireless-tools"
-
-          # --- Add ConnMan and connmanctl ---
-          # ConnMan is a network connection manager; connman-tools provides the connmanctl utility.
-          IMAGE_INSTALL_append = " connman connman-tools"
-
-          # --- Add Nano Editor ---
-          IMAGE_INSTALL_append = " nano"
-
-          # --- Your Custom Application (example) ---
-          IMAGE_INSTALL_append = " my-app"
-
-          # Optional: Include common dev tools, debug symbols, etc.
           EXTRA_IMAGE_FEATURES += " dev-pkgs dbg-pkgs"
-
-          # Add any other local.conf variables your project requires
-          # E.g., specific SDK versions, compiler options, etc.
-          # BB_NO_NETWORK = "1"
           EOF
 
           # --- USER CUSTOMIZATION POINT: Add Custom Layers to bblayers.conf ---
@@ -153,8 +105,6 @@ jobs:
         run: |
           export BB_NUMBER_THREADS=$(nproc)
           export PARALLEL_MAKE="-j $(nproc)"
-
-          # Change the image recipe to rpi-basic-image
           bitbake rpi-basic-image
 
         working-directory: ${{ github.workspace }}/poky/build
