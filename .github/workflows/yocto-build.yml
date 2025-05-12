@@ -71,9 +71,9 @@ jobs:
           SSTATE_DIR ?= "\${TOPDIR}/../../sstate-cache"
 
           INIT_MANAGER = "systemd"
-          EXTRA_IMAGE_FEATURES_append = " ssh-server-dropbear dev-pkgs dbg-pkgs"
+          EXTRA_IMAGE_FEATURES:append = " ssh-server-dropbear dev-pkgs dbg-pkgs"
 
-          IMAGE_INSTALL_append = " python3 python3-pip opkg nano \
+          IMAGE_INSTALL:append = " python3 python3-pip opkg nano \
           gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
           gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
           libcamera libcamera-tools v4l2-utils \
