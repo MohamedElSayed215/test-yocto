@@ -20,103 +20,149 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive # Important if your custom layers are Git submodules
+          submodules: recursive # Important if meta-your-project or other layers are Git submodules
 
       - name: Set up Yocto Build Environment Dependencies
         run: |
           # Install essential build dependencies for Yocto on Ubuntu
-          sudo apt update
-          sudo apt install -y gawk wget git diffstat unzip texinfo gcc-multilib build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping libssl-dev libsdl1.2-dev xterm python3-git python3-jinja2 libegl-dev libwayland-dev libacl1-dev zstd locales
+          sudo apt-get update -y
+          sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc-multilib \
+                                 build-essential chrpath socat cpio python3 python3-pip \
+                                 python3-pexpect xz-utils debianutils iputils-ping \
+                                 libssl-dev libsdl1.2-dev xterm python3-git python3-jinja2 \
+                                 libegl-dev libwayland-dev libacl1-dev zstd locales
+          sudo locale-gen en_US.UTF-8
 
-          # Optional: Configure Git for Yocto (for repo tool)
+          # Optional: Configure Git (though less critical here as repo tool isn't used for layer setup)
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-          # Download and install the 'repo' tool
-          mkdir -p ~/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-          chmod a+x ~/bin/repo
-
-          # Add repo to PATH for the current and subsequent steps
-          echo "PATH=$PATH:$HOME/bin" >> $GITHUB_ENV
-
-      - name: Initialize Yocto Project Layers (Poky, RPi, OpenEmbedded, Virtualization)
+      - name: Initialize Yocto Project Layers (Direct Git Clone)
         run: |
-          # Initialize the 'poky' repository.
-          # IMPORTANT: Using 'kirkstone' (Yocto 4.0 LTS) as 'yocto-4.3.1' is deprecated/non-existent.
-          repo init -u git://git.yoctoproject.org/poky -b kirkstone
-          repo sync
+          # Create a dedicated directory for all Yocto layers
+          mkdir -p yocto_layers
+          cd yocto_layers
+
+          # Clone Poky (core Yocto build system and oe-core layer)
+          # IMPORTANT: Using 'kirkstone' (Yocto 4.0 LTS).
+          git clone -b kirkstone git://git.yoctoproject.org/poky.git
 
           # Clone additional layers required for Raspberry Pi and your features
           # Ensure consistent branch usage (e.g., 'kirkstone')
-          git clone -b kirkstone git://git.yoctoproject.org/meta-raspberrypi.git poky/meta-raspberrypi
-          git clone -b kirkstone git://git.openembedded.org/meta-openembedded poky/meta-openembedded
-          git clone -b kirkstone https://git.yoctoproject.org/git/meta-virtualization poky/meta-virtualization
-
-        working-directory: ${{ github.workspace }} # This ensures repos are cloned into the root of your repo
+          git clone -b kirkstone git://git.yoctoproject.org/meta-raspberrypi.git
+          git clone -b kirkstone git://git.openembedded.org/meta-openembedded.git
+          git clone -b kirkstone https://git.yoctoproject.org/git/meta-virtualization.git
+        working-directory: ${{ github.workspace }} # All layers will be cloned into ${{ github.workspace }}/yocto_layers
 
       - name: Prepare Build Directory and Configuration
         run: |
-          # Source the Yocto environment setup script.
+          # Source the Yocto environment setup script from the cloned poky directory.
+          # This will create the 'build' directory inside ${{ github.workspace }}/yocto_layers/poky
           source poky/oe-init-build-env build
 
-          # --- USER CUSTOMIZATION POINT: Modify local.conf ---
-          cat <<EOF >> conf/local.conf
-          MACHINE ?= "raspberrypi3"
-          DISTRO ?= "poky"
+          # Now, navigate into the 'build' directory (which is now the current directory)
+          # to modify conf files. TOPDIR will point here.
 
-          BB_NUMBER_THREADS = "2"
-          PARALLEL_MAKE = "-j 2"
+          # --- Create bblayers.conf (overwrite to ensure consistency) ---
+          # Paths are relative to the 'build' directory (TOPDIR).
+          # Layers outside 'poky' directory are two levels up from 'build'.
+          # Your custom layer is assumed to be at the root of your GitHub repo.
+          cat <<EOF > conf/bblayers.conf
+POKY_BBLAYERS_CONF_VERSION = "2"
 
-          EXTRA_IMAGE_FEATURES += " ssh-server-dropbear"
-          INIT_MANAGER = "systemd"
+BBPATH = "\${TOPDIR}"
+BBFILES ?= ""
 
-          IMAGE_INSTALL_append = " python3 python3-pip opkg rpi-userland-vc raspi-config libcamera libcamera-tools v4l2-utils gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly docker-ce docker-ce-cli containerd.io python3-docker python3-docker-compose my-app nano wpa-supplicant wireless-tools connman connman-tools"
+BBLAYERS ?= " \\
+  \${TOPDIR}/../meta \\
+  \${TOPDIR}/../meta-poky \\
+  \${TOPDIR}/../meta-yocto-bsp \\
+  \${TOPDIR}/../../meta-raspberrypi \\
+  \${TOPDIR}/../../meta-openembedded/meta-oe \\
+  \${TOPDIR}/../../meta-openembedded/meta-python \\
+  \${TOPDIR}/../../meta-openembedded/meta-multimedia \\
+  \${TOPDIR}/../../meta-virtualization \\
+  \${TOPDIR}/../../../meta-your-project \\
+  "
+# Note: \${TOPDIR}/../../../meta-your-project assumes meta-your-project is at ${{ github.workspace }}/meta-your-project
+# TOPDIR is ${{ github.workspace }}/yocto_layers/poky/build
+# So, ../../../ goes to ${{ github.workspace }}
+EOF
 
-          EXTRA_IMAGE_FEATURES += " dev-pkgs dbg-pkgs"
-          EOF
+          # --- Modify local.conf (using a block replacement strategy for idempotency) ---
+          # Define your custom configurations. Using _append for list variables is good practice.
+          # Note: The "?=" assignments are naturally idempotent if the variable is already set.
+          # The "=" assignments will overwrite.
+          # The "_append" operations will add to existing values from distro/machine configs.
+          LOCAL_CONF_CUSTOMIZATIONS=$(cat <<EOS
+# --- GitHub Actions Customizations START ---
+MACHINE ?= "raspberrypi3"
+DISTRO ?= "poky"
 
-          # --- USER CUSTOMIZATION POINT: Add Custom Layers to bblayers.conf ---
-          cat <<EOF >> conf/bblayers.conf
-          BBLAYERS += "${TOPDIR}/../poky/meta-raspberrypi"
-          BBLAYERS += "${TOPDIR}/../poky/meta-openembedded/meta-oe"
-          BBLAYERS += "${TOPDIR}/../poky/meta-openembedded/meta-python"
-          BBLAYERS += "${TOPDIR}/../poky/meta-openembedded/meta-multimedia"
-          BBLAYERS += "${TOPDIR}/../poky/meta-virtualization"
-          BBLAYERS += "${TOPDIR}/../meta-your-project"
-          EOF
+# These are often overridden by environment variables in the 'Build Yocto Image' step for CI
+# but can be set here as defaults.
+# BB_NUMBER_THREADS ?= "2"
+# PARALLEL_MAKE ?= "-j 2"
 
-        working-directory: ${{ github.workspace }}/poky
+# Ensure downloads and sstate are within the workspace for caching if not default
+DL_DIR ?= "\${TOPDIR}/../downloads"
+SSTATE_DIR ?= "\${TOPDIR}/../sstate-cache"
+
+EXTRA_IMAGE_FEATURES_append = " ssh-server-dropbear"
+INIT_MANAGER = "systemd"
+
+# Add desired packages. This line will be part of the managed block.
+IMAGE_INSTALL_append = " python3 python3-pip opkg rpi-userland-vc raspi-config libcamera libcamera-tools v4l2-utils gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly docker-ce docker-ce-cli containerd.io python3-docker python3-docker-compose my-app nano wpa-supplicant wireless-tools connman connman-tools"
+
+EXTRA_IMAGE_FEATURES_append = " dev-pkgs dbg-pkgs"
+# --- GitHub Actions Customizations END ---
+EOS
+)
+          # Remove the old block of customizations if it exists
+          sed -i '/# --- GitHub Actions Customizations START ---/,/# --- GitHub Actions Customizations END ---/d' conf/local.conf
+
+          # Append the new block of customizations
+          echo "$LOCAL_CONF_CUSTOMIZATIONS" >> conf/local.conf
+
+        working-directory: ${{ github.workspace }}/yocto_layers/poky # Execute this step from the cloned 'poky' directory, then cd into 'build'
 
       - name: Configure and Cache Yocto Build Artifacts
         uses: actions/cache@v4
         with:
           path: |
-            poky/build/sstate-cache
-            poky/build/downloads
-          key: ${{ runner.os }}-yocto-${{ hashFiles('poky/build/conf/local.conf', 'poky/build/conf/bblayers.conf') }}
+            ${{ github.workspace }}/yocto_layers/sstate-cache
+            ${{ github.workspace }}/yocto_layers/downloads
+          # Note: The local.conf and bblayers.conf are inside poky/build/conf
+          key: ${{ runner.os }}-yocto-kirkstone-${{ hashFiles('${{ github.workspace }}/yocto_layers/poky/build/conf/local.conf', '${{ github.workspace }}/yocto_layers/poky/build/conf/bblayers.conf') }}
           restore-keys: |
-            ${{ runner.os }}-yocto-
+            ${{ runner.os }}-yocto-kirkstone-
 
       - name: Build Yocto Image
         run: |
-          export BB_NUMBER_THREADS=$(nproc)
+          # Set parallel threads according to the runner's capacity
+          export BB_NUMBER_THREADS="$(nproc)"
           export PARALLEL_MAKE="-j $(nproc)"
+          # Source the environment again if not already in this shell instance (usually needed)
+          source oe-init-build-env . 
           bitbake rpi-basic-image
-
-        working-directory: ${{ github.workspace }}/poky/build
+        working-directory: ${{ github.workspace }}/yocto_layers/poky/build # Execute from the build directory
 
       - name: Upload Built Images as Artifacts
+        if: success() # Only upload if build is successful
         uses: actions/upload-artifact@v4
         with:
-          name: raspi3-yocto-images
-          path: poky/build/tmp/deploy/images/**/*
+          name: raspi3-yocto-images-${{ github.run_number }}
+          path: ${{ github.workspace }}/yocto_layers/poky/build/tmp/deploy/images/raspberrypi3/*.wic.gz # Or other image types like .sdimg
 
       - name: Display Generated Image Information (Optional)
+        if: always() # Run even if previous steps fail, to aid debugging
         run: |
           echo "--- Contents of tmp/deploy/images/raspberrypi3 ---"
-          ls -lh poky/build/tmp/deploy/images/raspberrypi3/
-          echo "--- Build logs (bitbake.log) ---"
-          tail -n 100 poky/build/tmp/log/bitbake.log || true
+          ls -lh ${{ github.workspace }}/yocto_layers/poky/build/tmp/deploy/images/raspberrypi3/ || echo "No images found or directory does not exist."
+          echo "--- Last 100 lines of BitBake log (if build started) ---"
+          if [ -f "${{ github.workspace }}/yocto_layers/poky/build/tmp/log/cooker/raspberrypi3/console-latest.log" ]; then
+            tail -n 100 "${{ github.workspace }}/yocto_layers/poky/build/tmp/log/cooker/raspberrypi3/console-latest.log"
+          else
+            echo "Bitbake console log not found."
+          fi
         working-directory: ${{ github.workspace }}
-        if: always()
