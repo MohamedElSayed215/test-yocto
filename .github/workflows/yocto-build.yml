@@ -1,54 +1,175 @@
-name: Yocto Raspberry Pi 3 Build
+name: Yocto Raspberry Pi 3 Image Build
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
+      - develop
+  workflow_dispatch: # Allows manual triggering of the workflow
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  build_raspi3_image:
+    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+    timeout-minutes: 480 # Set a generous timeout (e.g., 8 hours) for the build
 
     steps:
-    - name: Install Dependencies
-      run: |
-          sudo apt-get update
-          sudo apt-get install -y gawk wget git-core diffstat unzip texinfo gcc build-essential \
-          chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping \
-          python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev python3-pylint xterm
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive # Important if your custom layers are Git submodules
 
-    - name: Checkout your layer
-      uses: actions/checkout@v3
+      - name: Set up Yocto Build Environment Dependencies
+        run: |
+          # Install essential build dependencies for Yocto on Ubuntu
+          sudo apt update
+          sudo apt install -y gawk wget git diffstat unzip texinfo gcc-multilib \
+            build-essential chrpath socat cpio python3 python3-pip python3-pexpect \
+            xz-utils debianutils iputils-ping libssl-dev libsdl1.2-dev xterm \
+            python3-git python3-jinja2 libegl1-mesa libwayland-protocol-dev \
+            libacl1-dev zstd locales
 
-    - name: Clone Poky and RPi Layers
-      run: |
-        git clone -b kirkstone https://git.yoctoproject.org/git/poky poky
-        cd poky
-        git clone -b kirkstone https://github.com/agherzan/meta-raspberrypi.git
-        git clone -b kirkstone https://git.yoctoproject.org/git/meta-openembedded
+          # Optional: Configure Git for Yocto (for repo tool)
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
-    - name: Setup Build Environment
-      run: |
-        cd poky
-        source oe-init-build-env build
+          # Download and install the 'repo' tool
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
 
-        echo 'BBLAYERS += "${TOPDIR}/../meta-raspberrypi"' >> conf/bblayers.conf
-        echo 'BBLAYERS += "${TOPDIR}/../meta-openembedded/meta-oe"' >> conf/bblayers.conf
-        echo 'BBLAYERS += "${TOPDIR}/../../meta-rpi-custom"' >> conf/bblayers.conf
+          # Add repo to PATH for the current and subsequent steps
+          echo "PATH=$PATH:$HOME/bin" >> $GITHUB_ENV
 
-        echo 'MACHINE = "raspberrypi3"' >> conf/local.conf
-        echo 'ENABLE_UART = "1"' >> conf/local.conf
-        echo 'GPU_MEM = "16"' >> conf/local.conf
-        echo 'DISTRO_FEATURES:append = " wifi systemd connman"' >> conf/local.conf
-        echo 'IMAGE_INSTALL:append = " openssh opkg connman "' >> conf/local.conf
-        echo 'PACKAGE_CLASSES = "package_ipk"' >> conf/local.conf
-        echo 'EXTRA_IMAGE_FEATURES += "package-management"' >> conf/local.conf
-        echo 'INHERIT += "rm_work"' >> conf/local.conf
+      - name: Initialize Yocto Project Layers (Poky, RPi, OpenEmbedded, Virtualization)
+        run: |
+          # Initialize the 'poky' repository.
+          # IMPORTANT: Replace 'yocto-4.3.1' with your desired Yocto release branch/tag (e.g., kirkstone, dunfell, mickledore)
+          repo init -u git://git.yoctoproject.org/poky -b yocto-4.3.1 # Example: Morty release, good for stability
+          repo sync
 
-    - name: Build rpi-basic-image
-      run: |
-        cd poky
-        source oe-init-build-env build
-        bitbake rpi-basic-image
+          # Clone additional layers required for Raspberry Pi and your features
+          # It's generally recommended to clone these alongside the poky directory,
+          # not inside it, for cleaner separation.
+
+          # Meta-Raspberrypi layer for RPi support
+          git clone -b yocto-4.3.1 git://git.yoctoproject.org/meta-raspberrypi.git poky/meta-raspberrypi
+
+          # Meta-OpenEmbedded layers (oe-core, python, multimedia)
+          git clone -b yocto-4.3.1 git://git.openembedded.org/meta-openembedded poky/meta-openembedded
+
+          # Meta-Virtualization layer for Docker
+          git clone -b yocto-4.3.1 https://git.yoctoproject.org/git/meta-virtualization poky/meta-virtualization
+
+        working-directory: ${{ github.workspace }} # This ensures repos are cloned into the root of your repo
+
+      - name: Prepare Build Directory and Configuration
+        run: |
+          # Source the Yocto environment setup script.
+          source poky/oe-init-build-env build
+
+          # --- USER CUSTOMIZATION POINT: Modify local.conf ---
+          cat <<EOF >> conf/local.conf
+          # Set your target machine to Raspberry Pi 3
+          MACHINE ?= "raspberrypi3"
+          DISTRO ?= "poky" # Or your custom distro if defined
+
+          # Optional: Improve build performance (adjust based on runner cores, usually 2 on GH Actions)
+          BB_NUMBER_THREADS = "2"
+          PARALLEL_MAKE = "-j 2"
+
+          # Enable SSH server (via Dropbear, a lightweight server)
+          EXTRA_IMAGE_FEATURES += " ssh-server-dropbear"
+
+          # Enable systemd as the init manager (REQUIRED by some features like Docker)
+          INIT_MANAGER = "systemd"
+
+          # --- REQUIRED FEATURES ---
+          # Python 3 & Pip
+          IMAGE_INSTALL_append = " python3 python3-pip"
+          PREFERRED_PROVIDER_virtual/python = "python3"
+          PREFERRED_PROVIDER_virtual/python3 = "python3"
+
+          # OPKG
+          IMAGE_INSTALL_append = " opkg"
+
+          # RPi Camera Support
+          IMAGE_INSTALL_append = " rpi-userland-vc raspi-config libcamera libcamera-tools v4l2-utils"
+
+          # GStreamer and common plugins
+          IMAGE_INSTALL_append = " gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly"
+
+          # Docker and Docker Compose
+          IMAGE_INSTALL_append = " docker-ce docker-ce-cli containerd.io"
+          IMAGE_INSTALL_append = " python3-docker python3-docker-compose"
+
+          # --- Add Wifi Support (wpa-supplicant is also included for broader compatibility) ---
+          IMAGE_INSTALL_append = " wpa-supplicant wireless-tools"
+
+          # --- Add ConnMan and connmanctl ---
+          # ConnMan is a network connection manager; connman-tools provides the connmanctl utility.
+          IMAGE_INSTALL_append = " connman connman-tools"
+
+          # --- Add Nano Editor ---
+          IMAGE_INSTALL_append = " nano"
+
+          # --- Your Custom Application (example) ---
+          IMAGE_INSTALL_append = " my-app"
+
+          # Optional: Include common dev tools, debug symbols, etc.
+          EXTRA_IMAGE_FEATURES += " dev-pkgs dbg-pkgs"
+
+          # Add any other local.conf variables your project requires
+          # E.g., specific SDK versions, compiler options, etc.
+          # BB_NO_NETWORK = "1"
+          EOF
+
+          # --- USER CUSTOMIZATION POINT: Add Custom Layers to bblayers.conf ---
+          cat <<EOF >> conf/bblayers.conf
+          BBLAYERS += "${TOPDIR}/../poky/meta-raspberrypi"
+          BBLAYERS += "${TOPDIR}/../poky/meta-openembedded/meta-oe"
+          BBLAYERS += "${TOPDIR}/../poky/meta-openembedded/meta-python"
+          BBLAYERS += "${TOPDIR}/../poky/meta-openembedded/meta-multimedia"
+          BBLAYERS += "${TOPDIR}/../poky/meta-virtualization"
+          BBLAYERS += "${TOPDIR}/../meta-your-project"
+          EOF
+
+        working-directory: ${{ github.workspace }}/poky
+
+      - name: Configure and Cache Yocto Build Artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            poky/build/sstate-cache
+            poky/build/downloads
+          key: ${{ runner.os }}-yocto-${{ hashFiles('poky/build/conf/local.conf', 'poky/build/conf/bblayers.conf') }}
+          restore-keys: |
+            ${{ runner.os }}-yocto-
+
+      - name: Build Yocto Image
+        run: |
+          export BB_NUMBER_THREADS=$(nproc)
+          export PARALLEL_MAKE="-j $(nproc)"
+
+          # Change the image recipe to rpi-basic-image
+          bitbake rpi-basic-image
+
+        working-directory: ${{ github.workspace }}/poky/build
+
+      - name: Upload Built Images as Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: raspi3-yocto-images
+          path: poky/build/tmp/deploy/images/**/*
+
+      - name: Display Generated Image Information (Optional)
+        run: |
+          echo "--- Contents of tmp/deploy/images/raspberrypi3 ---"
+          ls -lh poky/build/tmp/deploy/images/raspberrypi3/
+          echo "--- Build logs (bitbake.log) ---"
+          tail -n 100 poky/build/tmp/log/bitbake.log || true
+        working-directory: ${{ github.workspace }}
+        if: always()
