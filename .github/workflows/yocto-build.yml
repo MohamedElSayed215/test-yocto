@@ -2,19 +2,15 @@ name: Yocto Raspberry Pi 3 Image Build
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   pull_request:
-    branches:
-      - main
-      - develop
-  workflow_dispatch: # Allows manual triggering of the workflow
+    branches: [main, develop]
+  workflow_dispatch:
 
 jobs:
   build_raspi3_image:
     runs-on: ubuntu-latest
-    timeout-minutes: 480 # 8 hours
+    timeout-minutes: 480
 
     steps:
       - name: Checkout Repository
@@ -26,16 +22,15 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y gawk wget git diffstat unzip texinfo gcc-multilib \
-                                 build-essential chrpath socat cpio python3 python3-pip \
-                                 python3-pexpect xz-utils debianutils iputils-ping \
-                                 libssl-dev libsdl1.2-dev xterm python3-git python3-jinja2 \
-                                 libegl-dev libwayland-dev libacl1-dev zstd locales
+            build-essential chrpath socat cpio python3 python3-pip \
+            python3-pexpect xz-utils debianutils iputils-ping \
+            libssl-dev libsdl1.2-dev xterm python3-git python3-jinja2 \
+            libegl-dev libwayland-dev libacl1-dev zstd locales
           sudo locale-gen en_US.UTF-8
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: Initialize Yocto Project Layers (Direct Git Clone)
-        working-directory: ${{ github.workspace }}
+      - name: Initialize Yocto Project Layers
         run: |
           mkdir -p yocto_layers
           cd yocto_layers
@@ -45,23 +40,12 @@ jobs:
           git clone -b kirkstone https://git.yoctoproject.org/git/meta-virtualization.git
 
       - name: Prepare Build Directory and Configuration
-        # This step sources oe-init-build-env from poky, which creates and changes into the 'build' directory.
-        # Subsequent commands in this script block operate within that 'build' directory.
         working-directory: ${{ github.workspace }}/yocto_layers/poky
         run: |
-          echo "--- Sourcing Yocto environment (will create and cd into 'build' directory) ---"
           source oe-init-build-env build
 
-          echo "--- Current directory after oe-init-build-env: $(pwd) ---"
-          if [ ! -f conf/local.conf ]; then
-            echo "Error: conf/local.conf not found. Build directory not set up correctly by oe-init-build-env."
-            exit 1
-          fi
-
-          echo "--- Modifying bblayers.conf ---"
           cat <<EOF > conf/bblayers.conf
           POKY_BBLAYERS_CONF_VERSION = "2"
-
           BBPATH = "\${TOPDIR}"
           BBFILES ?= ""
 
@@ -75,41 +59,35 @@ jobs:
             \${TOPDIR}/../../meta-openembedded/meta-multimedia \\
             \${TOPDIR}/../../meta-virtualization \\
             \${TOPDIR}/../../../meta-your-project \\
-            "
-          # Note on meta-your-project path:
-          # TOPDIR is ${{ github.workspace }}/yocto_layers/poky/build
-          # ../../../ points to ${{ github.workspace }}
-          # So, \${TOPDIR}/../../../meta-your-project refers to ${{ github.workspace }}/meta-your-project
-          EOF
+          "
+EOF
 
-          echo "--- Modifying local.conf ---"
-          # Note: DL_DIR and SSTATE_DIR are set to be siblings of the 'poky' directory
-          # This aligns them with the GitHub cache paths specified later.
-          LOCAL_CONF_CUSTOMIZATIONS=\$(cat <<EOS
-          # --- GitHub Actions Customizations START ---
+          sed -i '/^MACHINE/d' conf/local.conf
+
+          cat <<EOF >> conf/local.conf
+
+          # --- GitHub Actions Customizations ---
           MACHINE ?= "raspberrypi3"
           DISTRO ?= "poky"
+          INIT_MANAGER = "systemd"
 
-          # Paths for downloads and shared state cache, relative to TOPDIR (build directory)
-          # TOPDIR/../../<dir> will place them in 'yocto_layers/' alongside 'poky/'
           DL_DIR ?= "\${TOPDIR}/../../downloads"
           SSTATE_DIR ?= "\${TOPDIR}/../../sstate-cache"
 
-          EXTRA_IMAGE_FEATURES_append = " ssh-server-dropbear"
-          INIT_MANAGER = "systemd"
+          EXTRA_IMAGE_FEATURES_append = " ssh-server-dropbear dev-pkgs dbg-pkgs"
 
-          IMAGE_INSTALL_append = " python3 python3-pip opkg rpi-userland-vc raspi-config libcamera libcamera-tools v4l2-utils gstreamer1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly docker-ce docker-ce-cli containerd.io python3-docker python3-docker-compose my-app nano wpa-supplicant wireless-tools connman connman-tools"
-
-          EXTRA_IMAGE_FEATURES_append = " dev-pkgs dbg-pkgs"
-          # --- GitHub Actions Customizations END ---
-EOS
-          )
-          # Remove the old block of customizations if it exists to ensure idempotency
-          sed -i '/# --- GitHub Actions Customizations START ---/,/# --- GitHub Actions Customizations END ---/d' conf/local.conf
-
-          # Append the new block of customizations
-          echo "\$LOCAL_CONF_CUSTOMIZATIONS" >> conf/local.conf
-          echo "--- Configuration files updated ---"
+          IMAGE_INSTALL_append = " \\
+            python3 python3-pip python3-pygobject \\
+            opkg nano wpa-supplicant wireless-tools connman connman-tools \\
+            rpi-userland-vc raspi-config \\
+            libcamera libcamera-tools v4l2-utils \\
+            gstreamer1.0 gstreamer1.0-plugins-base \\
+            gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \\
+            docker-ce docker-ce-cli containerd.io \\
+            python3-docker python3-docker-compose \\
+            my-app \\
+          "
+EOF
 
       - name: Configure and Cache Yocto Build Artifacts
         uses: actions/cache@v4
@@ -117,7 +95,7 @@ EOS
           path: |
             ${{ github.workspace }}/yocto_layers/downloads
             ${{ github.workspace }}/yocto_layers/sstate-cache
-          key: ${{ runner.os }}-yocto-kirkstone-${{ hashFiles('${{ github.workspace }}/yocto_layers/poky/build/conf/local.conf', '${{ github.workspace }}/yocto_layers/poky/build/conf/bblayers.conf') }}
+          key: ${{ runner.os }}-yocto-kirkstone-${{ hashFiles('${{ github.workspace }}/yocto_layers/poky/build/conf/local.conf') }}
           restore-keys: |
             ${{ runner.os }}-yocto-kirkstone-
 
@@ -125,39 +103,16 @@ EOS
         working-directory: ${{ github.workspace }}/yocto_layers/poky/build
         run: |
           export BB_NUMBER_THREADS="$(nproc)"
-          export PARALLEL_MAKE="-j $(nproc)"
-          echo "--- Starting BitBake build for rpi-basic-image ---"
-          # Environment should still be set up from previous step if 'source' was in the same 'run' context,
-          # but sourcing again within the build directory is safer if build step is complex or separated.
-          # Here, oe-init-build-env was sourced from poky/, and this step is already in poky/build/
-          # so the environment should be active. If issues, uncomment:
-          # source ../oe-init-build-env .
+          export PARALLEL_MAKE="-j$(nproc)"
           bitbake rpi-basic-image
 
-      - name: Upload Built Images as Artifacts
-        if: success()
+      - name: Upload Built Image Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: raspi3-yocto-images-${{ github.run_number }}
-          # Upload .wic.gz images, common for flashing. Adjust if you need other types (e.g., .sdimg)
-          path: ${{ github.workspace }}/yocto_layers/poky/build/tmp/deploy/images/raspberrypi3/*.wic.gz
+          name: raspi3-yocto-image-${{ github.run_number }}
+          path: |
+            ${{ github.workspace }}/yocto_layers/poky/build/tmp/deploy/images/raspberrypi3/*.wic.gz
 
-      - name: Display Generated Image Information (Optional)
-        if: always()
-        working-directory: ${{ github.workspace }} # Use workspace root for consistency with absolute paths
+      - name: Show Build Output Summary (Optional)
         run: |
-          echo "--- Contents of tmp/deploy/images/raspberrypi3 ---"
-          DEPLOY_DIR="${{ github.workspace }}/yocto_layers/poky/build/tmp/deploy/images/raspberrypi3"
-          if [ -d "\$DEPLOY_DIR" ]; then
-            ls -lh "\$DEPLOY_DIR/"
-          else
-            echo "Deployment directory not found: \$DEPLOY_DIR"
-          fi
-
-          echo "--- Last 100 lines of BitBake console log (if build started) ---"
-          CONSOLE_LOG="${{ github.workspace }}/yocto_layers/poky/build/tmp/log/cooker/raspberrypi3/console-latest.log"
-          if [ -f "\$CONSOLE_LOG" ]; then
-            tail -n 100 "\$CONSOLE_LOG"
-          else
-            echo "Bitbake console log not found: \$CONSOLE_LOG"
-          fi
+          ls -lh ${{ github.workspace }}/yocto_layers/poky/build/tmp/deploy/images/raspberrypi3/
