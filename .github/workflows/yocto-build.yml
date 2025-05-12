@@ -74,7 +74,7 @@ jobs:
             \${TOPDIR}/../../meta-virtualization \\
             \${TOPDIR}/../../meta-openembedded/meta-filesystems \\
             \${TOPDIR}/../../meta-openembedded/meta-networking \\
-            "
+          "
           EOF
 
           echo "--- Modifying local.conf ---"
