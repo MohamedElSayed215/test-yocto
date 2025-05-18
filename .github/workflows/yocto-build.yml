@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout Repo
@@ -31,6 +31,7 @@ jobs:
 
     - name: Prepare Config
       run: |
+        ls -l conf/
         mkdir -p build/conf
         cp conf/local.conf build/conf/local.conf
         cp conf/bblayers.conf build/conf/bblayers.conf
